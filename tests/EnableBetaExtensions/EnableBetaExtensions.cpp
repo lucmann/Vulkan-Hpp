@@ -24,7 +24,7 @@ int main( int /*argc*/, char ** /*argv*/ )
 
   vk::VideoEncodeSessionParametersGetInfoKHR videoSessionParametersInfo;
   auto                                       stuff = device.getEncodedVideoSessionParametersKHR<vk::VideoEncodeSessionParametersFeedbackInfoKHR,
-                                                          vk::VideoEncodeH264SessionParametersFeedbackInfoEXT,
-                                                          vk::VideoEncodeH265SessionParametersFeedbackInfoEXT>( videoSessionParametersInfo );
+                                                          vk::VideoEncodeH264SessionParametersFeedbackInfoKHR,
+                                                          vk::VideoEncodeH265SessionParametersFeedbackInfoKHR>( videoSessionParametersInfo );
   return 0;
 }

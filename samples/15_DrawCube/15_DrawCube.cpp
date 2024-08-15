@@ -44,7 +44,7 @@ int main( int /*argc*/, char ** /*argv*/ )
     std::pair<uint32_t, uint32_t> graphicsAndPresentQueueFamilyIndex = vk::su::findGraphicsAndPresentQueueFamilyIndex( physicalDevice, surfaceData.surface );
     vk::Device                    device = vk::su::createDevice( physicalDevice, graphicsAndPresentQueueFamilyIndex.first, vk::su::getDeviceExtensions() );
 
-    vk::CommandPool   commandPool = device.createCommandPool( { {}, graphicsAndPresentQueueFamilyIndex.first } );
+    vk::CommandPool   commandPool = device.createCommandPool( { vk::CommandPoolCreateFlagBits::eResetCommandBuffer, graphicsAndPresentQueueFamilyIndex.first } );
     vk::CommandBuffer commandBuffer =
       device.allocateCommandBuffers( vk::CommandBufferAllocateInfo( commandPool, vk::CommandBufferLevel::ePrimary, 1 ) ).front();
 
@@ -62,9 +62,11 @@ int main( int /*argc*/, char ** /*argv*/ )
 
     vk::su::DepthBufferData depthBufferData( physicalDevice, device, vk::Format::eD16Unorm, surfaceData.extent );
 
+    glm::vec3 rotation = glm::vec3(0.0f);
+    glm::vec3 rotation_speed = glm::vec3(16.0f);
     vk::su::BufferData uniformBufferData( physicalDevice, device, sizeof( glm::mat4x4 ), vk::BufferUsageFlagBits::eUniformBuffer );
     glm::mat4x4        mvpcMatrix = vk::su::createModelViewProjectionClipMatrix( surfaceData.extent );
-    vk::su::copyToDevice( device, uniformBufferData.deviceMemory, mvpcMatrix );
+    /* vk::su::copyToDevice( device, uniformBufferData.deviceMemory, mvpcMatrix ); */
 
     vk::DescriptorSetLayout descriptorSetLayout =
       vk::su::createDescriptorSetLayout( device, { { vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex } } );
@@ -104,8 +106,19 @@ int main( int /*argc*/, char ** /*argv*/ )
 
     /* VULKAN_KEY_START */
 
+    vk::Fence drawFence = device.createFence( vk::FenceCreateInfo() );
+    vk::Semaphore imageAcquiredSemaphore = device.createSemaphore( vk::SemaphoreCreateInfo() );
+
+    std::chrono::high_resolution_clock::time_point start, end;
+    start = std::chrono::high_resolution_clock::now();
+    float elapsed_time = 1.0f;
+    for (;;) {
+    rotation = rotation_speed * elapsed_time;
+    mvpcMatrix = glm::rotate(mvpcMatrix, rotation.x, glm::vec3(1.0, 0.0, 0.0));
+    mvpcMatrix = glm::rotate(mvpcMatrix, rotation.y, glm::vec3(0.0, 1.0, 0.0));
+    mvpcMatrix = glm::rotate(mvpcMatrix, rotation.z, glm::vec3(0.0, 0.0, 1.0));
+    vk::su::copyToDevice( device, uniformBufferData.deviceMemory, mvpcMatrix );
     // Get the index of the next available swapchain image:
-    vk::Semaphore             imageAcquiredSemaphore = device.createSemaphore( vk::SemaphoreCreateInfo() );
     vk::ResultValue<uint32_t> currentBuffer = device.acquireNextImageKHR( swapChainData.swapChain, vk::su::FenceTimeout, imageAcquiredSemaphore, nullptr );
     assert( currentBuffer.result == vk::Result::eSuccess );
     assert( currentBuffer.value < framebuffers.size() );
@@ -130,14 +143,14 @@ int main( int /*argc*/, char ** /*argv*/ )
     commandBuffer.endRenderPass();
     commandBuffer.end();
 
-    vk::Fence drawFence = device.createFence( vk::FenceCreateInfo() );
-
     vk::PipelineStageFlags waitDestinationStageMask( vk::PipelineStageFlagBits::eColorAttachmentOutput );
     vk::SubmitInfo         submitInfo( imageAcquiredSemaphore, waitDestinationStageMask, commandBuffer );
     graphicsQueue.submit( submitInfo, drawFence );
 
     while ( vk::Result::eTimeout == device.waitForFences( drawFence, VK_TRUE, vk::su::FenceTimeout ) )
       ;
+
+    device.resetFences( drawFence );
 
     vk::Result result = presentQueue.presentKHR( vk::PresentInfoKHR( {}, swapChainData.swapChain, currentBuffer.value ) );
     switch ( result )
@@ -146,10 +159,14 @@ int main( int /*argc*/, char ** /*argv*/ )
       case vk::Result::eSuboptimalKHR: std::cout << "vk::Queue::presentKHR returned vk::Result::eSuboptimalKHR !\n"; break;
       default: assert( false );  // an unexpected result is returned !
     }
-    std::this_thread::sleep_for( std::chrono::milliseconds( 1000 ) );
+    /* std::this_thread::sleep_for( std::chrono::milliseconds( 100000 ) ); */
+
+    end = std::chrono::high_resolution_clock::now();
+    elapsed_time = static_cast<float>(std::chrono::duration_cast<std::chrono::seconds>(end - start).count());
+
+    }
 
     device.waitIdle();
-
     device.destroyFence( drawFence );
     device.destroySemaphore( imageAcquiredSemaphore );
 

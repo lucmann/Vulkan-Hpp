@@ -21,6 +21,7 @@
 #  pragma clang diagnostic ignored "-Wunused-variable"
 #elif defined( __GNUC__ )
 #  pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+#  pragma GCC diagnostic ignored "-Winit-list-lifetime"
 #else
 // unknown compiler... just ignore the warnings for yourselves ;)
 #endif
